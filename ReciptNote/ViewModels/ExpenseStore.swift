@@ -170,23 +170,10 @@ class ExpenseStore: ObservableObject {
             
             print("✅ \(expenses.count)개 지출이 Expense 배열로 변환됨")
             
-            // 초기 샘플 데이터 추가 (최초 실행 시만)
-            if expenses.isEmpty {
-                print("🟡 빈 데이터베이스 - 샘플 데이터 추가")
-                addSampleData()
-            }
+            // 샘플 데이터 자동 추가 제거 - 이제 완전히 빈 상태로 시작
             
         } catch {
             print("❌ 지출 로딩 실패: \(error)")
-        }
-    }
-    
-    // MARK: - 샘플 데이터 추가
-    private func addSampleData() {
-        print("📝 샘플 데이터 추가 중...")
-        let sampleExpenses = Expense.sampleData
-        for expense in sampleExpenses {
-            addExpense(expense)
         }
     }
     
@@ -210,3 +197,4 @@ class ExpenseStore: ObservableObject {
         }
     }
 }
+

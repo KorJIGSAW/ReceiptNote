@@ -75,22 +75,5 @@ struct Expense: Identifiable, Codable {
 
 // 샘플 데이터 (테스트용)
 extension Expense {
-    static let sampleData: [Expense] = [
-        Expense(
-            date: Date(),
-            amount: 7500,
-            memo: "과자/우유",
-            category: .food,
-            receiptImageData: nil,
-            ocrText: "CU편의점 2025.05.21 총액: 7,500원"
-        ),
-        Expense(
-            date: Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date(),
-            amount: 15000,
-            memo: "식료품/채소",
-            category: .shopping,
-            receiptImageData: nil,
-            ocrText: nil
-        )
-    ]
+    static let sampleData: [Expense] = []  // 🔥 빈 배열로 변경
 }
