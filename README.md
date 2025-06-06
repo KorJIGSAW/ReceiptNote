@@ -159,7 +159,7 @@ ReceiptNote/
 - 📧 Email: bm8383@naver.com
 - 💼 GitHub: [@KorJIGSAW](https://github.com/KorJIGSAW)
 
-## 시연 영상
-[@시연영상]([https://github.com/KorJIGSAW](https://www.youtube.com/watch?v=TSIBI2OKucQ))
+## 🎬 시연 영상
+🔗 [@ReceiptNote 시연 영상](https://www.youtube.com/watch?v=TSIBI2OKucQ)
 
 ---
