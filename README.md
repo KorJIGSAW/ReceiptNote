@@ -47,8 +47,8 @@ ReceiptNote는 영수증 OCR 인식 기능을 활용하여 간편하게 지출�
 ### **개발 환경**
 - **언어**: Swift
 - **프레임워크**: SwiftUI
-- **플랫폼**: iOS 18.5
-- **IDE**: Xcode 16.4
+- **플랫폼**: iOS 15.0+
+- **IDE**: Xcode 15+
 
 ### **주요 기술**
 - **Core Data**: 로컬 데이터 영구 저장
@@ -91,42 +91,91 @@ ReceiptNote/
     └── ReceiptNote.xcdatamodeld   # Core Data 모델
 ```
 
-## 🚀 설치 및 실행
+## 💻 코드 및 프로젝트 설명
 
-### **요구사항**
-- **macOS** Sequoia 15.5
-- **Xcode** 16.4
-- **iOS** iOS 18.5
+### 📁 **Models** - 데이터 모델 계층
 
-### **설치 방법**
-1. **레포지토리 클론**
-   ```bash
-   git clone https://github.com/your-username/ReceiptNote.git
-   cd ReceiptNote
-   ```
+#### `Expense.swift` - 지출 데이터 모델
+```swift
+struct Expense: Identifiable, Codable {
+    var id = UUID()
+    var date: Date
+    var amount: Double
+    var memo: String
+    var category: ExpenseCategory = .other
+    var receiptImageData: Data?
+    var ocrText: String?
+}
+```
+**설명**: 지출 정보를 담는 핵심 데이터 모델. SwiftUI 호환성과 JSON 직렬화 지원.
 
-2. **Xcode에서 프로젝트 열기**
-   ```bash
-   open ReceiptNote.xcodeproj
-   ```
+#### `ExpenseCategory.swift` - 카테고리 시스템
+```swift
+enum ExpenseCategory: String, CaseIterable, Codable {
+    case food = "식비"
+    case transportation = "교통비"
+    // ...
+    var icon: String { /* SF Symbol */ }
+    var color: Color { /* 카테고리 색상 */ }
+}
+```
+**설명**: 8개 카테고리별 아이콘과 색상 시스템으로 일관된 UI 제공.
 
-3. **타겟 설정**
-   - **Team**: Apple Developer 계정 설정
-   - **Bundle Identifier**: 고유한 식별자로 변경
+### 🎨 **Views** - 사용자 인터페이스
 
-4. **권한 설정 확인**
-   - `Info.plist`에 카메라 및 사진 라이브러리 권한 설정됨
-   ```xml
-   <key>NSCameraUsageDescription</key>
-   <string>영수증 촬영을 위해 카메라 접근이 필요합니다.</string>
-   <key>NSPhotoLibraryUsageDescription</key>
-   <string>영수증 이미지 선택을 위해 사진 라이브러리 접근이 필요합니다.</string>
-   ```
+#### `MainView.swift` - 탭 기반 메인 화면
+```swift
+TabView {
+    homeView.tabItem { /* 홈 */ }
+    SearchView().tabItem { /* 검색 */ }
+    StatisticsView().tabItem { /* 통계 */ }
+    BudgetView().tabItem { /* 예산 */ }
+}
+```
+**설명**: 4개 탭으로 구성된 메인 네비게이션과 예산 미리보기 카드.
 
-5. **빌드 및 실행**
-   - **Command + R** 또는 **Product > Run**
+#### `AddExpenseView.swift` - 지출 추가 및 OCR
+```swift
+ocrManager.recognizeText(from: image) { result in
+    switch result {
+    case .success(let text):
+        // 자동 금액/카테고리 추출
+    case .failure:
+        // 에러 처리
+    }
+}
+```
+**설명**: 카메라/갤러리 연동, OCR 자동 인식, 실시간 데이터 입력.
 
-## 📱 주요 기능
+### 🔄 **ViewModels** - 비즈니스 로직
+
+#### `ExpenseStore.swift` - 데이터 관리
+```swift
+class ExpenseStore: ObservableObject {
+    @Published var expenses: [Expense] = []
+    
+    func addExpense(_ expense: Expense) {
+        // Core Data 저장 로직
+        saveContext()
+        loadExpenses()
+    }
+}
+```
+**설명**: Core Data CRUD 연산과 SwiftUI 상태 관리를 담당하는 중앙 데이터 저장소.
+
+#### `OCRManager.swift` - Vision Framework
+```swift
+let request = VNRecognizeTextRequest { request, error in
+    let text = observations.compactMap { 
+        $0.topCandidates(1).first?.string 
+    }.joined(separator: "\n")
+}
+request.recognitionLanguages = ["ko-KR", "en-US"]
+```
+**설명**: Vision Framework 기반 한국어/영어 OCR 엔진과 영수증 정보 자동 추출.
+
+
+## 📱 사용 방법
 
 ### **지출 추가**
 1. **홈 화면**에서 **"지출 추가"** 버튼 클릭
@@ -161,5 +210,3 @@ ReceiptNote/
 
 ## 🎬 시연 영상
 🔗 [@ReceiptNote 시연 영상](https://www.youtube.com/watch?v=TSIBI2OKucQ)
-
----
