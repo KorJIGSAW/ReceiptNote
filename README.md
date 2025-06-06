@@ -160,9 +160,6 @@ ReceiptNote/
 - 💼 GitHub: [@KorJIGSAW](https://github.com/KorJIGSAW)
 
 ## 시연 영상
-
-**2071360 이종범**
-//실주소로 바꿔야함
 [@시연영상]([https://github.com/KorJIGSAW](https://www.youtube.com/watch?v=TSIBI2OKucQ))
 
 ---
