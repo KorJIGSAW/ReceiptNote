@@ -6,12 +6,53 @@
 import Foundation
 import SwiftUI
 
+// 지출 카테고리 열거형
+enum ExpenseCategory: String, CaseIterable, Codable {
+    case food = "식비"
+    case transportation = "교통비"
+    case shopping = "생활용품"
+    case medical = "의료비"
+    case entertainment = "여가/오락"
+    case education = "교육"
+    case utility = "공과금"
+    case other = "기타"
+    
+    // 카테고리 아이콘
+    var icon: String {
+        switch self {
+        case .food: return "fork.knife"
+        case .transportation: return "car.fill"
+        case .shopping: return "bag.fill"
+        case .medical: return "cross.case.fill"
+        case .entertainment: return "gamecontroller.fill"
+        case .education: return "book.fill"
+        case .utility: return "bolt.fill"
+        case .other: return "questionmark.circle.fill"
+        }
+    }
+    
+    // 카테고리 색상
+    var color: Color {
+        switch self {
+        case .food: return .orange
+        case .transportation: return .blue
+        case .shopping: return .green
+        case .medical: return .red
+        case .entertainment: return .purple
+        case .education: return .indigo
+        case .utility: return .yellow
+        case .other: return .gray
+        }
+    }
+}
+
 // 지출 데이터 모델
 struct Expense: Identifiable, Codable {
     let id = UUID()
     var date: Date
     var amount: Double
     var memo: String
+    var category: ExpenseCategory = .other
     var receiptImageData: Data?
     var ocrText: String?
     
@@ -39,6 +80,7 @@ extension Expense {
             date: Date(),
             amount: 7500,
             memo: "과자/우유",
+            category: .food,
             receiptImageData: nil,
             ocrText: "CU편의점 2025.05.21 총액: 7,500원"
         ),
@@ -46,6 +88,7 @@ extension Expense {
             date: Calendar.current.date(byAdding: .day, value: -1, to: Date()) ?? Date(),
             amount: 15000,
             memo: "식료품/채소",
+            category: .shopping,
             receiptImageData: nil,
             ocrText: nil
         )

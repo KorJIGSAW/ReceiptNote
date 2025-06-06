@@ -8,6 +8,8 @@ import SwiftUI
 struct MainView: View {
     @State private var expenses: [Expense] = Expense.sampleData
     @State private var showingAddExpense = false
+    @State private var selectedExpense: Expense?
+    @State private var showingEditExpense = false
     
     var body: some View {
         NavigationView {
@@ -16,6 +18,10 @@ struct MainView: View {
                 List {
                     ForEach(expenses.sorted(by: { $0.date > $1.date })) { expense in
                         ExpenseRowView(expense: expense)
+                            .onTapGesture {
+                                selectedExpense = expense
+                                showingEditExpense = true
+                            }
                     }
                     .onDelete(perform: deleteExpenses)
                 }
@@ -58,6 +64,19 @@ struct MainView: View {
                     expenses.append(newExpense)
                 }
             }
+            .sheet(isPresented: $showingEditExpense) {
+                if let expense = selectedExpense {
+                    EditExpenseView(
+                        expense: expense,
+                        onSave: { updatedExpense in
+                            updateExpense(updatedExpense)
+                        },
+                        onDelete: {
+                            deleteExpense(expense)
+                        }
+                    )
+                }
+            }
         }
     }
     
@@ -69,6 +88,16 @@ struct MainView: View {
             }
         }
     }
+    
+    func updateExpense(_ updatedExpense: Expense) {
+        if let index = expenses.firstIndex(where: { $0.id == updatedExpense.id }) {
+            expenses[index] = updatedExpense
+        }
+    }
+    
+    func deleteExpense(_ expense: Expense) {
+        expenses.removeAll { $0.id == expense.id }
+    }
 }
 
 // 지출 항목 한 줄을 표시하는 뷰
@@ -77,21 +106,32 @@ struct ExpenseRowView: View {
     
     var body: some View {
         HStack {
-            // 영수증 이미지 또는 플레이스홀더
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color.gray.opacity(0.3))
-                .frame(width: 50, height: 50)
-                .overlay(
-                    Image(systemName: "doc.text")
-                        .foregroundColor(.gray)
-                )
+            // 카테고리 아이콘
+            Image(systemName: expense.category.icon)
+                .foregroundColor(expense.category.color)
+                .frame(width: 30, height: 30)
+                .background(expense.category.color.opacity(0.1))
+                .cornerRadius(8)
             
             VStack(alignment: .leading, spacing: 4) {
-                Text(expense.formattedDate)
-                    .font(.headline)
+                HStack {
+                    Text(expense.formattedDate)
+                        .font(.headline)
+                    Spacer()
+                    Text(expense.category.rawValue)
+                        .font(.caption)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(expense.category.color.opacity(0.2))
+                        .foregroundColor(expense.category.color)
+                        .cornerRadius(12)
+                }
+                
                 Text(expense.memo)
                     .font(.subheadline)
                     .foregroundColor(.secondary)
+                    .lineLimit(2)
+                
                 if let ocrText = expense.ocrText {
                     Text(ocrText)
                         .font(.caption)
@@ -106,7 +146,7 @@ struct ExpenseRowView: View {
                 .font(.headline)
                 .foregroundColor(.primary)
         }
-        .padding(.vertical, 4)
+        .padding(.vertical, 8)
     }
 }
 

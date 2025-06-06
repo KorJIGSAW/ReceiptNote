@@ -1,26 +1,47 @@
 //
-//  AddExpenseView.swift
+//  EditExpenseView.swift
 //  ReceiptNote
 //
+//  Views 폴더에 추가
 
 import SwiftUI
 
-struct AddExpenseView: View {
+struct EditExpenseView: View {
     @Environment(\.presentationMode) var presentationMode
     @StateObject private var ocrManager = OCRManager()
     
-    @State private var amount: String = ""
-    @State private var memo: String = ""
-    @State private var selectedDate = Date()
-    @State private var selectedCategory: ExpenseCategory = .other
+    @State private var amount: String
+    @State private var memo: String
+    @State private var selectedDate: Date
+    @State private var selectedCategory: ExpenseCategory
     @State private var showingImagePicker = false
     @State private var showingCamera = false
     @State private var selectedImage: UIImage?
-    @State private var ocrText: String = ""
+    @State private var ocrText: String
     @State private var isProcessingOCR = false
     @State private var ocrError: String?
     
+    let expense: Expense
     let onSave: (Expense) -> Void
+    let onDelete: () -> Void
+    
+    init(expense: Expense, onSave: @escaping (Expense) -> Void, onDelete: @escaping () -> Void) {
+        self.expense = expense
+        self.onSave = onSave
+        self.onDelete = onDelete
+        
+        // 초기값 설정
+        _amount = State(initialValue: EditExpenseView.formatCurrency(Int(expense.amount)))
+        _memo = State(initialValue: expense.memo)
+        _selectedDate = State(initialValue: expense.date)
+        _selectedCategory = State(initialValue: expense.category)
+        _ocrText = State(initialValue: expense.ocrText ?? "")
+        
+        // 이미지 복원
+        if let imageData = expense.receiptImageData {
+            _selectedImage = State(initialValue: UIImage(data: imageData))
+        }
+    }
     
     var body: some View {
         NavigationView {
@@ -36,10 +57,9 @@ struct AddExpenseView: View {
                             .keyboardType(.numberPad)
                             .multilineTextAlignment(.trailing)
                             .onChange(of: amount) { newValue in
-                                // 숫자만 입력되도록 필터링
                                 let filtered = newValue.filter { $0.isNumber }
                                 if let number = Int(filtered), number > 0 {
-                                    amount = formatCurrency(number)
+                                    amount = Self.formatCurrency(number)
                                 } else if filtered.isEmpty {
                                     amount = ""
                                 }
@@ -58,6 +78,9 @@ struct AddExpenseView: View {
                                     HStack {
                                         Image(systemName: category.icon)
                                         Text(category.rawValue)
+                                        if category == selectedCategory {
+                                            Image(systemName: "checkmark")
+                                        }
                                     }
                                 }
                             }
@@ -75,15 +98,14 @@ struct AddExpenseView: View {
                     }
                     
                     // 메모 입력
-                    HStack {
+                    VStack(alignment: .leading) {
                         Text("메모")
-                        TextField("메모 입력", text: $memo)
-                            .multilineTextAlignment(.trailing)
+                        TextEditor(text: $memo)
+                            .frame(minHeight: 60)
                     }
                 }
                 
                 Section(header: Text("영수증 사진")) {
-                    // 영수증 이미지 표시
                     if let image = selectedImage {
                         VStack {
                             Image(uiImage: image)
@@ -92,7 +114,6 @@ struct AddExpenseView: View {
                                 .frame(maxHeight: 200)
                                 .cornerRadius(10)
                             
-                            // OCR 처리 상태 표시
                             if isProcessingOCR {
                                 HStack {
                                     ProgressView()
@@ -106,7 +127,6 @@ struct AddExpenseView: View {
                         }
                     }
                     
-                    // OCR 기능 버튼들
                     HStack {
                         Button("촬영") {
                             showingCamera = true
@@ -125,10 +145,21 @@ struct AddExpenseView: View {
                         .background(Color.gray)
                         .foregroundColor(.white)
                         .cornerRadius(8)
+                        
+                        if selectedImage != nil {
+                            Button("삭제") {
+                                selectedImage = nil
+                                ocrText = ""
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(Color.red)
+                            .foregroundColor(.white)
+                            .cornerRadius(8)
+                        }
                     }
                     .buttonStyle(PlainButtonStyle())
                     
-                    // OCR 에러 표시
                     if let error = ocrError {
                         Text(error)
                             .font(.caption)
@@ -136,7 +167,6 @@ struct AddExpenseView: View {
                     }
                 }
                 
-                // OCR 결과 표시
                 if !ocrText.isEmpty {
                     Section(header: Text("인식된 텍스트")) {
                         Text(ocrText)
@@ -144,8 +174,18 @@ struct AddExpenseView: View {
                             .foregroundColor(.blue)
                     }
                 }
+                
+                // 삭제 버튼
+                Section {
+                    Button("지출 내역 삭제") {
+                        onDelete()
+                        presentationMode.wrappedValue.dismiss()
+                    }
+                    .foregroundColor(.red)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                }
             }
-            .navigationTitle("지출 추가")
+            .navigationTitle("지출 편집")
             .navigationBarItems(
                 leading: Button("취소") {
                     presentationMode.wrappedValue.dismiss()
@@ -167,11 +207,9 @@ struct AddExpenseView: View {
     private func processImage() {
         guard let image = selectedImage else { return }
         
-        // OCR 에러 초기화
         ocrError = nil
         isProcessingOCR = true
         
-        // 실제 OCR 처리
         ocrManager.recognizeText(from: image) { result in
             isProcessingOCR = false
             
@@ -179,19 +217,16 @@ struct AddExpenseView: View {
             case .success(let recognizedText):
                 ocrText = recognizedText
                 
-                // 영수증 정보 추출
                 let receiptInfo = ocrManager.extractReceiptInfo(from: recognizedText)
                 
-                // 추출된 정보로 필드 자동 채우기
                 if let extractedAmount = receiptInfo.totalAmount {
-                    amount = formatCurrency(Int(extractedAmount))
+                    amount = Self.formatCurrency(Int(extractedAmount))
                 }
                 
                 if let storeName = receiptInfo.storeName, memo.isEmpty {
                     memo = storeName
                 }
                 
-                // 자동 카테고리 분류
                 selectedCategory = autoDetectCategory(from: recognizedText)
                 
             case .failure(let error):
@@ -202,27 +237,25 @@ struct AddExpenseView: View {
     }
     
     private func saveExpense() {
-        // 금액에서 콤마와 "원" 제거 후 숫자만 추출
         let cleanAmount = amount.replacingOccurrences(of: ",", with: "")
                                 .replacingOccurrences(of: "원", with: "")
                                 .trimmingCharacters(in: .whitespaces)
         
         guard let amountValue = Double(cleanAmount) else { return }
         
-        let newExpense = Expense(
-            date: selectedDate,
-            amount: amountValue,
-            memo: memo,
-            category: selectedCategory,
-            receiptImageData: selectedImage?.jpegData(compressionQuality: 0.8),
-            ocrText: ocrText.isEmpty ? nil : ocrText
-        )
+        var updatedExpense = expense
+        updatedExpense.date = selectedDate
+        updatedExpense.amount = amountValue
+        updatedExpense.memo = memo
+        updatedExpense.category = selectedCategory
+        updatedExpense.receiptImageData = selectedImage?.jpegData(compressionQuality: 0.8)
+        updatedExpense.ocrText = ocrText.isEmpty ? nil : ocrText
         
-        onSave(newExpense)
+        onSave(updatedExpense)
         presentationMode.wrappedValue.dismiss()
     }
     
-    private func formatCurrency(_ amount: Int) -> String {
+    private static func formatCurrency(_ amount: Int) -> String {
         let formatter = NumberFormatter()
         formatter.numberStyle = .decimal
         let formattedNumber = formatter.string(from: NSNumber(value: amount)) ?? "\(amount)"
@@ -232,26 +265,22 @@ struct AddExpenseView: View {
     private func autoDetectCategory(from text: String) -> ExpenseCategory {
         let lowercaseText = text.lowercased()
         
-        // 식비 키워드
-        let foodKeywords = ["편의점", "마트", "카페", "커피", "음식점", "치킨", "피자", "hamburger", "coffee", "restaurant"]
+        let foodKeywords = ["편의점", "마트", "카페", "커피", "음식점", "치킨", "피자"]
         if foodKeywords.contains(where: { lowercaseText.contains($0) }) {
             return .food
         }
         
-        // 교통비 키워드
-        let transportKeywords = ["지하철", "버스", "택시", "주유", "gas", "subway", "bus"]
+        let transportKeywords = ["지하철", "버스", "택시", "주유"]
         if transportKeywords.contains(where: { lowercaseText.contains($0) }) {
             return .transportation
         }
         
-        // 의료비 키워드
-        let medicalKeywords = ["병원", "약국", "의원", "clinic", "hospital", "pharmacy"]
+        let medicalKeywords = ["병원", "약국", "의원"]
         if medicalKeywords.contains(where: { lowercaseText.contains($0) }) {
             return .medical
         }
         
-        // 생활용품 키워드
-        let shoppingKeywords = ["마트", "쇼핑", "세탁", "mart", "shopping"]
+        let shoppingKeywords = ["마트", "쇼핑", "세탁"]
         if shoppingKeywords.contains(where: { lowercaseText.contains($0) }) {
             return .shopping
         }
@@ -261,5 +290,9 @@ struct AddExpenseView: View {
 }
 
 #Preview {
-    AddExpenseView { _ in }
+    EditExpenseView(
+        expense: Expense.sampleData[0],
+        onSave: { _ in },
+        onDelete: { }
+    )
 }
