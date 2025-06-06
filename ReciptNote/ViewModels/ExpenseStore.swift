@@ -85,14 +85,18 @@ class ExpenseStore: ObservableObject {
     // MARK: - 지출 수정
     func updateExpense(_ expense: Expense) {
         print("🟡 지출 수정 시작: \(expense.memo)")
+        print("🟡 수정할 ID: \(expense.id)")
         
         let context = container.viewContext
         let request: NSFetchRequest<ExpenseEntity> = ExpenseEntity.fetchRequest()
-        request.predicate = NSPredicate(format: "id == %@", expense.id as CVarArg)
         
         do {
-            let results = try context.fetch(request)
-            if let expenseEntity = results.first {
+            let allEntities = try context.fetch(request)
+            let targetEntity = allEntities.first { entity in
+                return entity.id == expense.id
+            }
+            
+            if let expenseEntity = targetEntity {
                 expenseEntity.date = expense.date
                 expenseEntity.amount = expense.amount
                 expenseEntity.memo = expense.memo
@@ -115,21 +119,35 @@ class ExpenseStore: ObservableObject {
     // MARK: - 지출 삭제
     func deleteExpense(_ expense: Expense) {
         print("🟡 지출 삭제 시작: \(expense.memo)")
+        print("🟡 삭제할 ID: \(expense.id)")
         
         let context = container.viewContext
         let request: NSFetchRequest<ExpenseEntity> = ExpenseEntity.fetchRequest()
-        request.predicate = NSPredicate(format: "id == %@", expense.id as CVarArg)
         
         do {
-            let results = try context.fetch(request)
-            if let expenseEntity = results.first {
+            // 모든 ExpenseEntity를 가져와서 확인
+            let allEntities = try context.fetch(request)
+            print("🟡 Core Data에 저장된 총 지출 개수: \(allEntities.count)")
+            
+            // ID로 찾기
+            let targetEntity = allEntities.first { entity in
+                return entity.id == expense.id
+            }
+            
+            if let expenseEntity = targetEntity {
+                print("✅ 삭제할 지출 찾음: \(expenseEntity.memo ?? "메모 없음")")
                 context.delete(expenseEntity)
+                
                 if saveContext() {
                     print("✅ 지출 삭제 성공: \(expense.memo)")
                     loadExpenses()
                 }
             } else {
-                print("❌ 삭제할 지출을 찾을 수 없음: \(expense.id)")
+                print("❌ 삭제할 지출을 찾을 수 없음")
+                print("🔍 저장된 ID들:")
+                for entity in allEntities {
+                    print("  - \(entity.id?.uuidString ?? "ID 없음"): \(entity.memo ?? "메모 없음")")
+                }
             }
         } catch {
             print("❌ 지출 삭제 실패: \(error)")
@@ -158,7 +176,7 @@ class ExpenseStore: ObservableObject {
                     return nil
                 }
                 
-                return Expense(
+                var expense = Expense(
                     date: date,
                     amount: entity.amount,
                     memo: memo,
@@ -166,6 +184,11 @@ class ExpenseStore: ObservableObject {
                     receiptImageData: entity.receiptImageData,
                     ocrText: entity.ocrText
                 )
+                
+                // 🔥 Core Data의 ID를 Expense 객체에 설정
+                expense.id = id
+                
+                return expense
             }
             
             print("✅ \(expenses.count)개 지출이 Expense 배열로 변환됨")
@@ -197,4 +220,3 @@ class ExpenseStore: ObservableObject {
         }
     }
 }
-

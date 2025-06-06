@@ -106,23 +106,45 @@ struct StatisticsView: View {
         let now = Date()
         var weeklyData: [StatisticsData] = []
         
-        // 최근 4주간의 데이터 생성
+        // 이번 주부터 과거 4주간의 데이터 생성
         for weekOffset in 0..<4 {
-            let weekStart = calendar.date(byAdding: .weekOfYear, value: -weekOffset, to: now) ?? now
-            let weekEnd = calendar.date(byAdding: .day, value: 6, to: weekStart) ?? now
+            // 현재 주에서 weekOffset만큼 이전 주의 시작일 계산
+            guard let weekStart = calendar.date(byAdding: .weekOfYear, value: -weekOffset, to: now) else { continue }
+            
+            // 해당 주의 시작일 (일요일)과 종료일 (토요일) 계산
+            let weekStartDate = calendar.dateInterval(of: .weekOfYear, for: weekStart)?.start ?? weekStart
+            let weekEndDate = calendar.date(byAdding: .day, value: 6, to: weekStartDate) ?? weekStart
             
             // 해당 주의 지출 필터링
             let weekExpenses = expenses.filter { expense in
-                expense.date >= weekStart && expense.date <= weekEnd
+                expense.date >= weekStartDate && expense.date <= weekEndDate
             }
             
             let totalAmount = weekExpenses.reduce(0) { $0 + $1.amount }
-            let weekNumber = 4 - weekOffset
             
-            weeklyData.append(StatisticsData(period: "\(weekNumber)주차", amount: totalAmount))
+            // 주차명을 더 직관적으로 변경
+            let periodName: String
+            switch weekOffset {
+            case 0: periodName = "이번 주"
+            case 1: periodName = "지난 주"
+            case 2: periodName = "2주 전"
+            case 3: periodName = "3주 전"
+            default: periodName = "\(weekOffset)주 전"
+            }
+            
+            // 날짜 포맷터
+            let dateFormatter = DateFormatter()
+            dateFormatter.dateFormat = "M/d"
+            let startDateString = dateFormatter.string(from: weekStartDate)
+            let endDateString = dateFormatter.string(from: weekEndDate)
+            
+            // 디버깅을 위한 로그
+            print("🗓️ \(periodName) (\(startDateString)~\(endDateString)): 지출 \(weekExpenses.count)개, 총액: \(totalAmount)")
+            
+            weeklyData.append(StatisticsData(period: periodName, amount: totalAmount))
         }
         
-        return weeklyData.reversed() // 1주차부터 순서대로
+        return weeklyData.reversed() // 과거부터 현재 순서로
     }
     
     private func generateMonthlyData() -> [StatisticsData] {
@@ -147,6 +169,9 @@ struct StatisticsView: View {
             let formatter = DateFormatter()
             formatter.dateFormat = "M월"
             let monthName = formatter.string(from: monthDate)
+            
+            // 디버깅을 위한 로그
+            print("📅 \(monthName): \(monthStart) ~ \(monthEnd), 지출: \(monthExpenses.count)개, 총액: \(totalAmount)")
             
             monthlyData.append(StatisticsData(period: monthName, amount: totalAmount))
         }

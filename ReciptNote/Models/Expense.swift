@@ -48,7 +48,7 @@ enum ExpenseCategory: String, CaseIterable, Codable {
 
 // 지출 데이터 모델
 struct Expense: Identifiable, Codable {
-    let id = UUID()
+    var id = UUID()  // 🔥 let → var로 변경
     var date: Date
     var amount: Double
     var memo: String
