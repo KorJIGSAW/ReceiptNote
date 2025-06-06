@@ -6,17 +6,66 @@
 import SwiftUI
 
 struct MainView: View {
-    @State private var expenses: [Expense] = Expense.sampleData
+    @StateObject private var expenseStore = ExpenseStore()
     @State private var showingAddExpense = false
     @State private var selectedExpense: Expense?
     @State private var showingEditExpense = false
+    @State private var selectedTab = 0
+    @State private var budget = Budget()
     
     var body: some View {
+        TabView(selection: $selectedTab) {
+            // 홈 탭 - 지출 내역
+            homeView
+                .tabItem {
+                    Image(systemName: "house.fill")
+                    Text("홈")
+                }
+                .tag(0)
+            
+            // 검색 탭
+            SearchView(expenses: $expenseStore.expenses)
+                .tabItem {
+                    Image(systemName: "magnifyingglass")
+                    Text("검색")
+                }
+                .tag(1)
+            
+            // 통계 탭
+            StatisticsView(expenses: expenseStore.expenses)
+                .tabItem {
+                    Image(systemName: "chart.bar")
+                    Text("통계")
+                }
+                .tag(2)
+            
+            // 예산 탭
+            BudgetView(budget: $budget, expenses: expenseStore.expenses)
+                .tabItem {
+                    Image(systemName: "dollarsign.circle")
+                    Text("예산")
+                }
+                .tag(3)
+        }
+        .onAppear {
+            loadBudget()
+        }
+        .onChange(of: budget) { _ in
+            saveBudget()
+        }
+    }
+    
+    private var homeView: some View {
         NavigationView {
-            VStack {
+            VStack(spacing: 0) {
+                // 예산 미리보기 카드
+                BudgetPreviewCard(budget: budget, expenses: expenseStore.expenses)
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+                
                 // 지출 내역 리스트
                 List {
-                    ForEach(expenses.sorted(by: { $0.date > $1.date })) { expense in
+                    ForEach(expenseStore.expenses.sorted(by: { $0.date > $1.date })) { expense in
                         ExpenseRowView(expense: expense)
                             .onTapGesture {
                                 selectedExpense = expense
@@ -25,43 +74,31 @@ struct MainView: View {
                     }
                     .onDelete(perform: deleteExpenses)
                 }
+                .listStyle(PlainListStyle())
                 
-                // 하단 버튼들
-                VStack(spacing: 16) {
-                    // 지출 추가 버튼
-                    Button(action: {
-                        showingAddExpense = true
-                    }) {
-                        HStack {
-                            Image(systemName: "plus")
-                            Text("지출 추가")
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.blue)
-                        .foregroundColor(.white)
-                        .cornerRadius(10)
+                // 지출 추가 버튼
+                Button(action: {
+                    showingAddExpense = true
+                }) {
+                    HStack {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.title2)
+                        Text("지출 추가")
+                            .font(.headline)
                     }
-                    
-                    // 통계 보기 버튼
-                    NavigationLink(destination: StatisticsView(expenses: expenses)) {
-                        HStack {
-                            Image(systemName: "chart.bar")
-                            Text("지출 통계")
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding()
-                        .background(Color.green)
-                        .foregroundColor(.white)
-                        .cornerRadius(10)
-                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+                    .background(Color.blue)
+                    .foregroundColor(.white)
+                    .cornerRadius(12)
                 }
-                .padding()
+                .padding(.horizontal, 16)
+                .padding(.bottom, 8)
             }
             .navigationTitle("ReceiptNote")
             .sheet(isPresented: $showingAddExpense) {
                 AddExpenseView { newExpense in
-                    expenses.append(newExpense)
+                    expenseStore.addExpense(newExpense)
                 }
             }
             .sheet(isPresented: $showingEditExpense) {
@@ -69,10 +106,10 @@ struct MainView: View {
                     EditExpenseView(
                         expense: expense,
                         onSave: { updatedExpense in
-                            updateExpense(updatedExpense)
+                            expenseStore.updateExpense(updatedExpense)
                         },
                         onDelete: {
-                            deleteExpense(expense)
+                            expenseStore.deleteExpense(expense)
                         }
                     )
                 }
@@ -80,57 +117,199 @@ struct MainView: View {
         }
     }
     
+    // MARK: - Functions
+    
     func deleteExpenses(offsets: IndexSet) {
-        let sortedExpenses = expenses.sorted(by: { $0.date > $1.date })
+        let sortedExpenses = expenseStore.expenses.sorted(by: { $0.date > $1.date })
         for index in offsets {
-            if let originalIndex = expenses.firstIndex(where: { $0.id == sortedExpenses[index].id }) {
-                expenses.remove(at: originalIndex)
-            }
+            let expenseToDelete = sortedExpenses[index]
+            expenseStore.deleteExpense(expenseToDelete)
         }
     }
     
-    func updateExpense(_ updatedExpense: Expense) {
-        if let index = expenses.firstIndex(where: { $0.id == updatedExpense.id }) {
-            expenses[index] = updatedExpense
+    private func loadBudget() {
+        guard let data = UserDefaults.standard.data(forKey: "UserBudget") else { return }
+        
+        do {
+            budget = try JSONDecoder().decode(Budget.self, from: data)
+        } catch {
+            print("예산 로딩 실패: \(error)")
         }
     }
     
-    func deleteExpense(_ expense: Expense) {
-        expenses.removeAll { $0.id == expense.id }
+    private func saveBudget() {
+        do {
+            let data = try JSONEncoder().encode(budget)
+            UserDefaults.standard.set(data, forKey: "UserBudget")
+        } catch {
+            print("예산 저장 실패: \(error)")
+        }
     }
 }
 
-// 지출 항목 한 줄을 표시하는 뷰
+// MARK: - 예산 미리보기 카드
+
+struct BudgetPreviewCard: View {
+    let budget: Budget
+    let expenses: [Expense]
+    
+    var body: some View {
+        let usagePercentage = budget.usagePercentage(for: expenses)
+        let isOverBudget = budget.isOverBudget(for: expenses)
+        let totalSpent = getCurrentMonthTotal()
+        let remainingBudget = budget.monthlyBudget - totalSpent
+        
+        VStack(spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("이번 달 예산")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    Text("\(Int(usagePercentage))% 사용됨")
+                        .font(.title3)
+                        .fontWeight(.semibold)
+                        .foregroundColor(isOverBudget ? .red : .primary)
+                }
+                
+                Spacer()
+                
+                // 원형 진행률
+                ZStack {
+                    Circle()
+                        .stroke(Color.gray.opacity(0.2), lineWidth: 8)
+                        .frame(width: 60, height: 60)
+                    
+                    Circle()
+                        .trim(from: 0, to: CGFloat(min(usagePercentage / 100, 1.0)))
+                        .stroke(
+                            isOverBudget ? Color.red : Color.blue,
+                            style: StrokeStyle(lineWidth: 8, lineCap: .round)
+                        )
+                        .frame(width: 60, height: 60)
+                        .rotationEffect(Angle(degrees: -90))
+                        .animation(.easeInOut(duration: 0.5), value: usagePercentage)
+                    
+                    if isOverBudget {
+                        Image(systemName: "exclamationmark")
+                            .font(.caption)
+                            .foregroundColor(.red)
+                            .fontWeight(.bold)
+                    }
+                }
+            }
+            
+            // 금액 정보
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("사용")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    Text(formatCurrency(totalSpent))
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                }
+                
+                Spacer()
+                
+                VStack(alignment: .center, spacing: 2) {
+                    Text("예산")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    Text(formatCurrency(budget.monthlyBudget))
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                }
+                
+                Spacer()
+                
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("남은")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    Text(formatCurrency(remainingBudget))
+                        .font(.subheadline)
+                        .fontWeight(.medium)
+                        .foregroundColor(remainingBudget < 0 ? .red : .green)
+                }
+            }
+        }
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color(.systemBackground))
+                .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 2)
+        )
+    }
+    
+    private func getCurrentMonthTotal() -> Double {
+        let calendar = Calendar.current
+        let now = Date()
+        let startOfMonth = calendar.date(from: calendar.dateComponents([.year, .month], from: now)) ?? now
+        let endOfMonth = calendar.date(byAdding: .month, value: 1, to: startOfMonth)?.addingTimeInterval(-1) ?? now
+        
+        return expenses.filter { expense in
+            expense.date >= startOfMonth && expense.date <= endOfMonth
+        }.reduce(0) { $0 + $1.amount }
+    }
+    
+    private func formatCurrency(_ amount: Double) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.currencySymbol = "₩"
+        formatter.maximumFractionDigits = 0
+        return formatter.string(from: NSNumber(value: amount)) ?? "₩0"
+    }
+}
+
+// MARK: - 지출 항목 행 뷰
+
 struct ExpenseRowView: View {
     let expense: Expense
     
     var body: some View {
-        HStack {
+        HStack(spacing: 12) {
             // 카테고리 아이콘
-            Image(systemName: expense.category.icon)
-                .foregroundColor(expense.category.color)
-                .frame(width: 30, height: 30)
-                .background(expense.category.color.opacity(0.1))
-                .cornerRadius(8)
+            ZStack {
+                RoundedRectangle(cornerRadius: 12)
+                    .fill(expense.category.color.opacity(0.15))
+                    .frame(width: 48, height: 48)
+                
+                Image(systemName: expense.category.icon)
+                    .font(.title2)
+                    .foregroundColor(expense.category.color)
+            }
             
+            // 지출 정보
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
-                    Text(expense.formattedDate)
+                    Text(expense.memo)
                         .font(.headline)
+                        .lineLimit(1)
+                    
                     Spacer()
+                    
+                    Text(expense.formattedAmount)
+                        .font(.headline)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
+                }
+                
+                HStack {
+                    Text(expense.formattedDate)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    
+                    Spacer()
+                    
                     Text(expense.category.rawValue)
                         .font(.caption)
                         .padding(.horizontal, 8)
-                        .padding(.vertical, 2)
+                        .padding(.vertical, 3)
                         .background(expense.category.color.opacity(0.2))
                         .foregroundColor(expense.category.color)
-                        .cornerRadius(12)
+                        .cornerRadius(8)
                 }
-                
-                Text(expense.memo)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .lineLimit(2)
                 
                 if let ocrText = expense.ocrText {
                     Text(ocrText)
@@ -139,16 +318,13 @@ struct ExpenseRowView: View {
                         .lineLimit(1)
                 }
             }
-            
-            Spacer()
-            
-            Text(expense.formattedAmount)
-                .font(.headline)
-                .foregroundColor(.primary)
         }
         .padding(.vertical, 8)
+        .background(Color.clear)
     }
 }
+
+// MARK: - Preview
 
 #Preview {
     MainView()
